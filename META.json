@@ -1,5 +1,5 @@
 {
-   "abstract" : "It's new $module",
+   "abstract" : "Google BigQuery Client Library for Perl",
    "author" : [
       "Shoji Kai <sho2kai@gmail.com>"
    ],
@@ -42,7 +42,7 @@
       },
       "runtime" : {
          "requires" : {
-            "perl" : "5.008001"
+            "perl" : "5.10"
          }
       },
       "test" : {
@@ -52,5 +52,16 @@
       }
    },
    "release_status" : "unstable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "https://github.com/shojikai/Google-BigQuery/issues"
+      },
+      "homepage" : "https://github.com/shojikai/Google-BigQuery",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/shojikai/Google-BigQuery.git",
+         "web" : "https://github.com/shojikai/Google-BigQuery"
+      }
+   },
    "version" : "0.01"
 }
