@@ -11,6 +11,8 @@ use JSON qw(decode_json encode_json);
 use JSON::WebToken;
 use LWP::UserAgent;
 
+use Data::Dumper;
+
 sub create {
   my (%args) = @_;
 
@@ -322,20 +324,23 @@ sub insert {
 sub selectrow_array {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
   my $query = $args{query} // die;
+  my $project_id = $args{project_id} // $self->{project_id} // die;
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  my $content = {
+    query => $query,
+  };
+
+  if (defined $dataset_id) {
+    $content->{defaultDataset}{projectId} = $project_id;
+    $content->{defaultDataset}{datasetId} = $dataset_id;
+  }
 
   my $response = $self->request(
     resource => 'jobs',
     method => 'query',
-    content => {
-      query => $query,
-      defaultDataset => {
-        projectId => $project_id,
-        datasetId => $dataset_id
-      }
-    }
+    content => $content
   );
 
   my @ret;
@@ -349,20 +354,23 @@ sub selectrow_array {
 sub selectall_arrayref {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
   my $query = $args{query} // die;
+  my $project_id = $args{project_id} // $self->{project_id} // die;
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  my $content = {
+    query => $query,
+  };
+
+  if (defined $dataset_id) {
+    $content->{defaultDataset}{projectId} = $project_id;
+    $content->{defaultDataset}{datasetId} = $dataset_id;
+  }
 
   my $response = $self->request(
     resource => 'jobs',
     method => 'query',
-    content => {
-      query => $query,
-      defaultDataset => {
-        projectId => $project_id,
-        datasetId => $dataset_id
-      }
-    }
+    content => $content
   );
 
   my $ret = [];
