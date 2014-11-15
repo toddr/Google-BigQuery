@@ -24,7 +24,7 @@ $bigquery->use_dataset($dataset_id);
 
 # create dataset
 $bigquery->create_dataset(
-  dataaset_id => $dataset_id,   # required if default dataset is not set
+  dataset_id => $dataset_id,    # required if default dataset is not set
   project_id => $project_id     # required if default project is not set
 );
 
@@ -33,7 +33,7 @@ my $table_id = 'sample_table_' . time;
 
 $bigquery->create_table(
   table_id => $table_id,        # required
-  dataaset_id => $dataset_id,   # required if default dataset is not set
+  dataset_id => $dataset_id,    # required if default dataset is not set
   project_id => $project_id,    # required if default project is not set
   schema => [                   # required
     { name => "id", type => "INTEGER", mode => "REQUIRED" },
@@ -44,7 +44,7 @@ $bigquery->create_table(
 # insert
 $bigquery->insert(
   table_id => $table_id,        # required
-  dataaset_id => $dataset_id,   # required if default dataset is not set
+  dataset_id => $dataset_id,    # required if default dataset is not set
   project_id => $project_id,    # required if default project is not set
   values => [                   # required
     { id => 101, name => 'name101' },
@@ -67,7 +67,7 @@ close $out;
 
 $bigquery->load(
   table_id => $table_id,        # required
-  dataaset_id => $dataset_id,   # required if default dataset is not set
+  dataset_id => $dataset_id,    # required if default dataset is not set
   project_id => $project_id,    # required if default project is not set
   data => $load_file,           # required (suppored suffixes are tsv, csv, json and (tsv|csv|json).gz)
   schema => [                   # optional
