@@ -452,7 +452,7 @@ Google::BigQuery - Google BigQuery Client Library for Perl
 
     # create dataset
     $bigquery->create_dataset(
-      dataaset_id => $dataset_id,   # required if default dataset is not set
+      dataset_id => $dataset_id,    # required if default dataset is not set
       project_id => $project_id     # required if default project is not set
     );
 
@@ -461,7 +461,7 @@ Google::BigQuery - Google BigQuery Client Library for Perl
 
     $bigquery->create_table(
       table_id => $table_id,        # required
-      dataaset_id => $dataset_id,   # required if default dataset is not set
+      dataset_id => $dataset_id,    # required if default dataset is not set
       project_id => $project_id,    # required if default project is not set
       schema => [                   # required
         { name => "id", type => "INTEGER", mode => "REQUIRED" },
@@ -472,7 +472,7 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     # insert
     $bigquery->insert(
       table_id => $table_id,        # required
-      dataaset_id => $dataset_id,   # required if default dataset is not set
+      dataset_id => $dataset_id,    # required if default dataset is not set
       project_id => $project_id,    # required if default project is not set
       values => [                   # required
         { id => 101, name => 'name101' },
@@ -495,7 +495,7 @@ Google::BigQuery - Google BigQuery Client Library for Perl
 
     $bigquery->load(
       table_id => $table_id,        # required
-      dataaset_id => $dataset_id,   # required if default dataset is not set
+      dataset_id => $dataset_id,    # required if default dataset is not set
       project_id => $project_id,    # required if default project is not set
       data => $load_file,           # required (suppored suffixes are tsv, csv, json and (tsv|csv|json).gz)
       schema => [                   # optional
