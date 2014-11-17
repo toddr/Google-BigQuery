@@ -4,7 +4,7 @@
       "Shoji Kai <sho2kai@gmail.com>"
    ],
    "dynamic_config" : 0,
-   "generated_by" : "Minilla/v2.2.0, CPAN::Meta::Converter version 2.142690",
+   "generated_by" : "Minilla/v2.2.1, CPAN::Meta::Converter version 2.142690",
    "license" : [
       "perl_5"
    ],
@@ -42,12 +42,21 @@
       },
       "runtime" : {
          "requires" : {
-            "perl" : "5.10"
+            "perl" : "5.010001"
          }
       },
       "test" : {
          "requires" : {
-            "Test::More" : "0.98"
+            "Class::Load" : "0",
+            "Crypt::OpenSSL::PKCS12" : "0",
+            "Crypt::OpenSSL::RSA" : "0",
+            "HTTP::Request" : "0",
+            "JSON" : "0",
+            "JSON::WebToken" : "0",
+            "LWP::Protocol::https" : "0",
+            "LWP::UserAgent" : "0",
+            "Test::More" : "0.98",
+            "URI::Escape" : "0"
          }
       }
    },
@@ -63,5 +72,5 @@
          "web" : "https://github.com/shojikai/Google-BigQuery"
       }
    },
-   "version" : "0.01"
+   "version" : "0.02"
 }
