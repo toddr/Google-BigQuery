@@ -42,11 +42,6 @@
       },
       "runtime" : {
          "requires" : {
-            "perl" : "5.010001"
-         }
-      },
-      "test" : {
-         "requires" : {
             "Class::Load" : "0",
             "Crypt::OpenSSL::PKCS12" : "0",
             "Crypt::OpenSSL::RSA" : "0",
@@ -55,8 +50,13 @@
             "JSON::WebToken" : "0",
             "LWP::Protocol::https" : "0",
             "LWP::UserAgent" : "0",
-            "Test::More" : "0.98",
-            "URI::Escape" : "0"
+            "URI::Escape" : "0",
+            "perl" : "5.010001"
+         }
+      },
+      "test" : {
+         "requires" : {
+            "Test::More" : "0.98"
          }
       }
    },
