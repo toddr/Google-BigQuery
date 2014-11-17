@@ -1,3 +1,10 @@
+BEGIN {
+  unless (defined $ENV{CLIENT_EMAIL} && defined $ENV{PRIVATE_KEY_FILE} && $ENV{PROJECT_ID}) {
+    require Test::More;
+    Test::More::plan(skip_all => 'This test need $ENV{CLIENT_EMAIL}, $ENV{PRIVATE_KEY_FILE} and $ENV{PROJECT_ID}.');
+  }
+}
+
 use strict;
 use Test::More 0.98;
 use FindBin '$Bin';
