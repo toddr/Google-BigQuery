@@ -100,6 +100,26 @@ Google::BigQuery - Google BigQuery Client Library for Perl
 
 Google::BigQuery - Google BigQuery Client Library for Perl
 
+# TROUBLESHOOTING
+
+## Configure failed for Crypt-OpenSSL-PKCS12
+
+If such a following error occurrs,
+
+    --> Working on Crypt::OpenSSL::PKCS12
+    Fetching http://www.cpan.org/authors/id/D/DA/DANIEL/Crypt-OpenSSL-PKCS12-0.7.tar.gz ... OK
+    Configuring Crypt-OpenSSL-PKCS12-0.6 ... N/A
+    ! Configure failed for Crypt-OpenSSL-PKCS12-0.6. See /home/vagrant/.cpanm/work/1416208473.2527/build.log for details.
+
+For now, you can work around it as below.
+
+    cd /home/vagrant/.cpanm/work/1416208473.2527/Crypt-OpenSSL-PKCS12-0.7
+    rm -fr inc
+    cpanm Module::Install
+    perl Makefile.PL
+    make test
+    make install
+
 # LICENSE
 
 Copyright (C) Shoji Kai.
