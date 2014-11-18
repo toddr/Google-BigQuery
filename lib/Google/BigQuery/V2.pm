@@ -9,8 +9,6 @@ use HTTP::Request;
 use JSON qw(decode_json encode_json);
 use URI::Escape;
 
-use Data::Dumper;
-
 sub new {
   my ($class, %args) = @_;
 
@@ -82,17 +80,24 @@ sub request {
     );
 
     my $response = $self->{ua}->request($request);
-    if ($response->code == 200) {
-      my $json_response = decode_json($response->decoded_content);
-      my $job_id = $json_response->{jobReference}{jobId};
-      while (1) {
-        my $json_response = $self->request(method => 'get', resource => 'jobs', job_id => $job_id);
-        if ($json_response->{status}{state} eq 'DONE') {
-          return $json_response;
-        } else {
-          print "Wating...(state: $json_response->{status}{state})\n" if defined $self->{verbose};
-          sleep(1);
+    if (defined $response->content) {
+      my $content = decode_json($response->content);
+      if (defined $content->{error}) {
+        return { error => { message => $content->{error}{message} } };
+      } elsif ($response->code == 200) {
+        my $json_response = decode_json($response->decoded_content);
+        my $job_id = $json_response->{jobReference}{jobId};
+        while (1) {
+          my $json_response = $self->request(method => 'get', resource => 'jobs', job_id => $job_id);
+          if ($json_response->{status}{state} eq 'DONE') {
+            return $json_response;
+          } else {
+            print "Wating...(state: $json_response->{status}{state})\n" if defined $self->{verbose};
+            sleep(1);
+          }
         }
+      } else {
+        die;
       }
     } else {
       die;
@@ -112,7 +117,19 @@ sub request {
       $request->content(encode_json($args{content}));
     }
     my $response = $self->{ua}->request($request);
-    return $response->code == 204 ? {} : decode_json($response->decoded_content);
+
+    if ($response->code == 204) {
+      return {};
+    } elsif (defined $response->content) {
+      # easy json check
+      if ($response->content =~ /^\s*[{\[]/) {
+        return decode_json($response->decoded_content);
+      } else {
+        return { error => { message => $response->content }};
+      }
+    } else {
+      return { error => { message => 'Unknown Error' }};
+    }
   }
 }
 

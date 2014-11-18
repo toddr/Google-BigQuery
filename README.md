@@ -114,9 +114,28 @@ If such a following error occurrs,
 For now, you can work around it as below.
 
     cd /home/vagrant/.cpanm/work/1416208473.2527/Crypt-OpenSSL-PKCS12-0.7
+
+    ### If you are a Mac user, you might also need the following steps.
+    #
+    # 1. Install new OpenSSL library and header.
+    # brew install openssl
+    #
+    # 2. Add a lib_path and a includ_path to the Makefile.PL.
+    # --- Makefile.PL.orig    2013-12-01 07:41:25.000000000 +0900
+    # +++ Makefile.PL 2014-11-18 11:58:39.000000000 +0900
+    # @@ -17,8 +17,8 @@
+    #
+    #  requires_external_cc();
+    #
+    # -cc_inc_paths('/usr/include/openssl', '/usr/local/include/ssl', '/usr/local/ssl/include');
+    # -cc_lib_paths('/usr/lib', '/usr/local/lib', '/usr/local/ssl/lib');
+    # +cc_inc_paths('/usr/local/opt/openssl/include', '/usr/include/openssl', '/usr/local/include/ssl', '/usr/local/ssl/include');
+    # +cc_lib_paths('/usr/local/opt/openssl/lib', '/usr/lib', '/usr/local/lib', '/usr/local/ssl/lib');
+    
     rm -fr inc
     cpanm Module::Install
     perl Makefile.PL
+    make
     make test
     make install
 

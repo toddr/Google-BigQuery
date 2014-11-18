@@ -11,8 +11,6 @@ use JSON qw(decode_json encode_json);
 use JSON::WebToken;
 use LWP::UserAgent;
 
-use Data::Dumper;
-
 sub create {
   my (%args) = @_;
 
@@ -22,12 +20,16 @@ sub create {
   if (load_class($class)) {
     return $class->new(%args);
   } else {
-    die;
+    die "Can't load class: $class";
   }
 }
 
 sub new {
   my ($class, %args) = @_;
+
+  die "undefined client_eamil" if !defined $args{client_email};
+  die "undefined private_key_file" if !defined $args{private_key_file};
+  die "not found private_key_file" if !-f $args{private_key_file};
 
   my $self = bless { %args }, $class;
 
@@ -43,12 +45,9 @@ sub new {
     my $password = "notasecret";
     my $pkcs12 = Crypt::OpenSSL::PKCS12->new_from_file($self->{private_key_file});
     $self->{private_key} = $pkcs12->private_key($password);
+  } else {
+    die "invalid private_key_file format";
   }
-
-  $self->{scope} //= 'https://www.googleapis.com/auth/bigquery';
-  $self->{exp} //= time + 3600;
-  $self->{iat} //= time;
-  $self->{ua} = LWP::UserAgent->new;
 
   $self->_auth;
   $self->_set_rest_description;
@@ -61,6 +60,11 @@ sub DESTROY {
 
 sub _auth {
   my ($self) = @_;
+
+  $self->{scope} //= 'https://www.googleapis.com/auth/bigquery';
+  $self->{exp} = time + 3600;
+  $self->{iat} = time;
+  $self->{ua} = LWP::UserAgent->new;
 
   my $claim = {
     iss => $self->{client_email},
@@ -80,7 +84,8 @@ sub _auth {
   if ($response->is_success) {
     $self->{access_token} = decode_json($response->decoded_content);
   } else {
-    die;
+    my $error = decode_json($response->decoded_content);
+    die $error->{error};
   }
 }
 
@@ -103,12 +108,22 @@ sub use_dataset {
 sub create_dataset {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'datasets',
     method => 'insert',
+    project_id => $project_id,
     dataset_id => $dataset_id,
     content => {
       datasetReference => {
@@ -118,18 +133,28 @@ sub create_dataset {
     }
   );
 
-  if ($response->{datasetReference}{datasetId} eq $dataset_id) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
     return 0;
+  } else {
+    return 1;
   }
 }
 
 sub drop_dataset {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'datasets',
@@ -138,10 +163,11 @@ sub drop_dataset {
     dataset_id => $dataset_id
   );
 
-  if (!%$response) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
     return 0;
+  } else {
+    return 1;
   }
 }
 
@@ -150,13 +176,23 @@ sub show_datasets {
 
   my $project_id = $args{project_id} // $self->{project_id};
 
+  unless ($project_id) {
+    warn "no project\n";
+    return undef;
+  }
+
   my $response = $self->request(
     resource => 'datasets',
     method => 'list',
     project_id => $project_id
   );
 
-  my @ret;
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return undef;
+  }
+
+  my @ret = ();
   foreach my $dataset (@{$response->{datasets}}) {
     push @ret, $dataset->{datasetReference}{datasetId};
   }
@@ -167,14 +203,29 @@ sub show_datasets {
 sub create_table {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
-  my $table_id = $args{table_id} // die;
-  my $schema = $args{schema} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+  my $schema = $args{schema};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'tables',
     method => 'insert',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
     table_id => $table_id,
     content => {
       tableReference => {
@@ -188,19 +239,36 @@ sub create_table {
     }
   );
 
-  if ($response->{tableReference}{tableId} eq $table_id) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
     return 0;
+  } elsif (defined $schema && !defined $response->{schema}) {
+    warn "no create schema";
+    return 0;
+  } else {
+    return 1;
   }
 }
 
 sub drop_table {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
-  my $table_id = $args{table_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'tables',
@@ -210,18 +278,28 @@ sub drop_table {
     table_id => $table_id
   );
 
-  if (!%$response) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
     return 0;
+  } else {
+    return 1;
   }
 }
 
 sub show_tables {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return undef;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return undef;
+  }
 
   my $response = $self->request(
     resource => 'tables',
@@ -230,7 +308,12 @@ sub show_tables {
     dataset_id => $dataset_id
   );
 
-  my @ret;
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return undef;
+  }
+
+  my @ret = ();
   foreach my $table (@{$response->{tables}}) {
     push @ret, $table->{tableReference}{tableId};
   }
@@ -241,10 +324,27 @@ sub show_tables {
 sub load {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
-  my $table_id = $args{table_id} // die;
-  my $data = $args{data} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+  my $data = $args{data};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
+  unless ($data) {
+    warn "no data\n";
+    return 0;
+  }
 
   my $content = {
     configuration => {
@@ -272,33 +372,64 @@ sub load {
     $content->{configuration}{load}{sourceFormat} = $source_format if defined $source_format;
     $content->{configuration}{load}{fieldDelimiter} = $field_delimiter if defined $field_delimiter;
   } else {
-    die;
+    warn "invalid suffix";
+    return 0;
   }
 
+  # load options
   $content->{configuration}{load}{schema}{fields} = $args{schema} if defined $args{schema};
 
   my $response = $self->request(
     resource => 'jobs',
     method => 'insert',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
     talbe_id => $table_id,
     content => $content,
     data => $data
   );
 
-  if ($response->{status}{state} eq 'DONE') {
-    return 1;
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return 0;
+  } elsif ($response->{status}{state} eq 'DONE') {
+    if (defined $response->{status}{errors}) {
+      foreach my $error (@{$response->{status}{errors}}) {
+        warn encode_json($error), "\n";
+      }
+      return 0;
+    } else {
+      return 1;
+    }
   } else {
-    die;
+    return 0;
   }
 }
 
 sub insert {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
-  my $table_id = $args{table_id} // die;
-  my $values = $args{values} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+  my $values = $args{values};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
+  unless ($values) {
+    warn "no values\n";
+    return 0;
+  }
 
   my $rows = [];
   foreach my $value (@$values) {
@@ -308,25 +439,42 @@ sub insert {
   my $response = $self->request(
     resource => 'tabledata',
     method => 'insertAll',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
     table_id => $table_id,
     content => {
       rows => $rows
     }
   );
 
-  if (!defined $response->{errors}) {
-    return 1;
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return 0;
+  } elsif (defined $response->{insertErrors}) {
+    foreach my $error (@{$response->{insertErrors}}) {
+      warn encode_json($error), "\n";
+    }
+    return 0;
   } else {
-    die;
+    return 1;
   }
 }
 
 sub selectrow_array {
   my ($self, %args) = @_;
 
-  my $query = $args{query} // die;
-  my $project_id = $args{project_id} // $self->{project_id} // die;
+  my $query = $args{query};
+  my $project_id = $args{project_id} // $self->{project_id};
   my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($query) {
+    warn "no query\n";
+    return 0;
+  }
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
 
   my $content = {
     query => $query,
@@ -343,7 +491,12 @@ sub selectrow_array {
     content => $content
   );
 
-  my @ret;
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return 0;
+  }
+
+  my @ret = ();
   foreach my $field (@{$response->{rows}[0]{f}}) {
     push @ret, $field->{v};
   }
@@ -354,9 +507,18 @@ sub selectrow_array {
 sub selectall_arrayref {
   my ($self, %args) = @_;
 
-  my $query = $args{query} // die;
-  my $project_id = $args{project_id} // $self->{project_id} // die;
+  my $query = $args{query};
+  my $project_id = $args{project_id} // $self->{project_id};
   my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($query) {
+    warn "no query\n";
+    return 0;
+  }
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
 
   my $content = {
     query => $query,
@@ -372,6 +534,11 @@ sub selectall_arrayref {
     method => 'query',
     content => $content
   );
+
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return 0;
+  }
 
   my $ret = [];
   foreach my $rows (@{$response->{rows}}) {
@@ -388,8 +555,17 @@ sub selectall_arrayref {
 sub is_exists_dataset {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'datasets',
@@ -398,19 +574,33 @@ sub is_exists_dataset {
     dataset_id => $dataset_id
   );
 
-  if (defined $response->{datasetReference}{datasetId}) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    #warn $response->{error}{message};
     return 0;
+  } else {
+    return 1;
   }
 }
 
 sub is_exists_table {
   my ($self, %args) = @_;
 
-  my $project_id = $args{project_id} // $self->{project_id} // die;
-  my $dataset_id = $args{dataset_id} // $self->{dataset_id} // die;
-  my $table_id = $args{table_id} // die;
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
 
   my $response = $self->request(
     resource => 'tables',
@@ -420,10 +610,11 @@ sub is_exists_table {
     table_id => $table_id
   );
 
-  if (defined $response->{tableReference}{tableId}) {
-    return 1;
-  } else {
+  if (defined $response->{error}) {
+    #warn $response->{error}{message};
     return 0;
+  } else {
+    return 1;
   }
 }
 
@@ -530,7 +721,6 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     # drop dataset
     $bigquery->drop_dataset(dataset_id => $dataset_id);
 
-
 =head1 DESCRIPTION
 
 Google::BigQuery - Google BigQuery Client Library for Perl
@@ -549,9 +739,28 @@ If such a following error occurrs,
 For now, you can work around it as below.
 
   cd /home/vagrant/.cpanm/work/1416208473.2527/Crypt-OpenSSL-PKCS12-0.7
+
+  ### If you are a Mac user, you might also need the following steps.
+  #
+  # 1. Install new OpenSSL library and header.
+  # brew install openssl
+  #
+  # 2. Add a lib_path and a includ_path to the Makefile.PL.
+  # --- Makefile.PL.orig    2013-12-01 07:41:25.000000000 +0900
+  # +++ Makefile.PL 2014-11-18 11:58:39.000000000 +0900
+  # @@ -17,8 +17,8 @@
+  #
+  #  requires_external_cc();
+  #
+  # -cc_inc_paths('/usr/include/openssl', '/usr/local/include/ssl', '/usr/local/ssl/include');
+  # -cc_lib_paths('/usr/lib', '/usr/local/lib', '/usr/local/ssl/lib');
+  # +cc_inc_paths('/usr/local/opt/openssl/include', '/usr/include/openssl', '/usr/local/include/ssl', '/usr/local/ssl/include');
+  # +cc_lib_paths('/usr/local/opt/openssl/lib', '/usr/lib', '/usr/local/lib', '/usr/local/ssl/lib');
+  
   rm -fr inc
   cpanm Module::Install
   perl Makefile.PL
+  make
   make test
   make install
 
