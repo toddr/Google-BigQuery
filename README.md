@@ -115,7 +115,7 @@ For now, you can work around it as below.
 
 # METHODS
 
-See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
+See details of option at https://cloud.google.com/bigquery/docs/reference/v2/.
 
 - create
 
@@ -184,10 +184,8 @@ See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
 - desc\_dataset
 
     Describe a dataset.
-
     This method returns a Datasets resource.
-
-    See datails at https://cloud.google.com/bigquery/docs/reference/v2/datasets#resource.
+    See datails of a Datasets resource at https://cloud.google.com/bigquery/docs/reference/v2/datasets#resource.
 
         $bq->desc_dataset(              # return hashref of datasets resource
           project_id => $project_id,    # required if default project is not set
@@ -239,10 +237,8 @@ See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
 - desc\_table
 
     Describe a table.
-
     This method returns a Tables resource.
-
-    See datails at https://cloud.google.com/bigquery/docs/reference/v2/tables#resource.
+    See datails of a Tables resource at https://cloud.google.com/bigquery/docs/reference/v2/tables#resource.
 
         $bq->desc_table(                # return hashref of tables resource
           project_id => $project_id,    # required if default project is not set
@@ -276,7 +272,6 @@ See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
 - insert
 
     Streams data into BigQuery one record at a time without needing to run a load job.
-
     See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
 
         $bq->insert(                    # return 1 (success) or 0 (error)
@@ -350,8 +345,7 @@ See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
 
 - request
 
-    If you want to use functions except above methods, you can request Google BigQuery API using request() method.
-
+    You can also directly request to Google BigQuery API using request() method.
     See details of Google BigQuery API at https://cloud.google.com/bigquery/docs/reference/v2/.
 
         $bq->request(
