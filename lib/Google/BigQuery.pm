@@ -910,6 +910,8 @@ Google::BigQuery - Google BigQuery Client Library for Perl
       dataset_id => $dataset_id
     );
 
+    $bigquery->use_dataset($dataset_id);
+
     # create table
     my $table_id = 'sample_table';
 
