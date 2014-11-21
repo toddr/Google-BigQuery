@@ -879,6 +879,15 @@ sub extract {
   }
 }
 
+sub get_nextPageToken {
+  my $self = shift;
+
+  if (defined $self->{response}{nextPageToken}) {
+    return $self->{response}{nextPageToken};
+  } else {
+    return undef;
+  }
+}
 
 1;
 __END__
@@ -897,25 +906,23 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     my $private_key_file = <YOUR PRIVATE KEY FILE>;
     my $project_id = <YOUR PROJECT ID>;
 
-    my $bigquery = Google::BigQuery::create(
+    # create a instance
+    my $bq = Google::BigQuery::create(
       client_email => $client_email,
       private_key_file => $private_key_file,
       project_id => $project_id,
     );
 
-    # create dataset
+    # create a dataset
     my $dataset_id = <YOUR DATASET ID>;
-
-    $bigquery->create_dataset(
+    $bq->create_dataset(
       dataset_id => $dataset_id
     );
+    $bq->use_dataset($dataset_id);
 
-    $bigquery->use_dataset($dataset_id);
-
-    # create table
+    # create a table
     my $table_id = 'sample_table';
-
-    $bigquery->create_table(
+    $bq->create_table(
       table_id => $table_id,
       schema => [
         { name => "id", type => "INTEGER", mode => "REQUIRED" },
@@ -935,7 +942,7 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     }
     close $out;
 
-    $bigquery->load(
+    $bq->load(
       table_id => $table_id,
       data => $load_file,
     );
@@ -943,20 +950,20 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     unlink $load_file;
 
     # selectrow_array
-    my ($count) = $bigquery->selectrow_array(query => "SELECT COUNT(*) FROM $table_id");
+    my ($count) = $bq->selectrow_array(query => "SELECT COUNT(*) FROM $table_id");
     print $count, "\n";
 
     # selectall_arrayref
-    my $aref = $bigquery->selectall_arrayref(query => "SELECT * FROM $table_id ORDER BY id");
+    my $aref = $bq->selectall_arrayref(query => "SELECT * FROM $table_id ORDER BY id");
     foreach my $ref (@$aref) {
       print join("\t", @$ref), "\n";
     }
 
     # drop table
-    $bigquery->drop_table(table_id => $table_id);
+    $bq->drop_table(table_id => $table_id);
 
     # drop dataset
-    $bigquery->drop_dataset(dataset_id => $dataset_id);
+    $bq->drop_dataset(dataset_id => $dataset_id);
 
 =head1 DESCRIPTION
 
@@ -1036,6 +1043,8 @@ Set a default dataset.
 
 =item * create_dataset
 
+Create a dataset.
+
   $bq->create_dataset(              # return 1 (success) or 0 (error)
     project_id => $project_id,      # required if default project is not set
     dataset_id => $dataset_id,      # required if default dataset is not set
@@ -1046,6 +1055,8 @@ Set a default dataset.
 
 =item * drop_dataset
 
+Drop a dataset.
+
   $bq->drop_dataset(              # return 1 (success) or 0 (error)
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required
@@ -1054,6 +1065,8 @@ Set a default dataset.
 
 =item * show_datasets
 
+List datasets.
+
   $bq->show_datasets(             # return array of dataset_id
     project_id => $project_id,    # required if default project is not set
     all => $boolean,              # optional
@@ -1061,14 +1074,28 @@ Set a default dataset.
     pageToken => $pageToken,      # optional
   );
 
+Use get_nextPageToken() if you want to use pageToken.
+
+  $bq->show_datasets(maxResults => 1);
+  my $nextPageToken = $bq->get_nextPageToken;
+  $bq->show_datasets(maxResults => 1, nextPageToken => $nextPageToken);
+
 =item * desc_dataset
 
-  $bq->desc_dataset(              # return hashref of datasets resource (see. https://cloud.google.com/bigquery/docs/reference/v2/datasets#resource)
+Describe a dataset.
+
+This method returns a Datasets resource.
+
+See datails at https://cloud.google.com/bigquery/docs/reference/v2/datasets#resource.
+
+  $bq->desc_dataset(              # return hashref of datasets resource
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required if default project is not set
   );
 
 =item * create_table
+
+Create a table.
 
   $bq->create_table(                    # return 1 (success) or 0 (error)
     project_id => $project_id,          # required if default project is not set
@@ -1083,6 +1110,8 @@ Set a default dataset.
 
 =item * drop_table
 
+Drop a table.
+
   $bq->drop_table(                # return 1 (success) or 0 (error)
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required
@@ -1091,6 +1120,8 @@ Set a default dataset.
 
 =item * show_tables
 
+List tables.
+
   $bq->show_tables(               # return array of table_id
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required if default project is not set
@@ -1098,9 +1129,21 @@ Set a default dataset.
     pageToken => $pageToken,      # optional
   );
 
+Use get_nextPageToken() if you want to use pageToken.
+
+  $bq->show_tables(maxResults => 1);
+  my $nextPageToken = $bq->get_nextPageToken;
+  $bq->show_tables(maxResults => 1, nextPageToken => $nextPageToken);
+
 =item * desc_table
 
-  $bq->desc_table(                # return hashref of tables resource (see. https://cloud.google.com/bigquery/docs/reference/v2/tables#resource)
+Describe a table.
+
+This method returns a Tables resource.
+
+See datails at https://cloud.google.com/bigquery/docs/reference/v2/tables#resource.
+
+  $bq->desc_table(                # return hashref of tables resource
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required if default project is not set
     table_id => $table_id,        # required
@@ -1114,7 +1157,7 @@ Load data from one of several formats into a table.
     project_id => $project_id,                # required if default project is not set
     dataset_id => $dataset_id,                # required if default project is not set
     table_id => $table_id,                    # required
-    data => \@data,                           # required (specify a local file or Google Cloud Storage URIs)
+    data => $data,                            # required (specify a local file or Google Cloud Storage URIs)
     allowJaggedRows => $boolean,              # optional
     allowQuotedNewlines => $boolean,          # optional
     createDisposition => $createDisposition,  # optional
@@ -1132,6 +1175,7 @@ Load data from one of several formats into a table.
 =item * insert
 
 Streams data into BigQuery one record at a time without needing to run a load job.
+
 See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
 
   $bq->insert(                    # return 1 (success) or 0 (error)
@@ -1142,6 +1186,8 @@ See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
   );
 
 =item * selectrow_array
+
+Select a row.
 
   $bq->selectrow_array(           # return array of a row
     project_id => $project_id,    # required if default project is not set
@@ -1155,6 +1201,8 @@ See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
 
 =item * selectall_arrayref
 
+Select rows.
+
   $bq->selectrow_array(           # return arrayref of rows
     project_id => $project_id,    # required if default project is not set
     query => $query,              # required
@@ -1167,12 +1215,16 @@ See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
 
 =item * is_exists_dataset
 
+Check a dataset exists or not.
+
   $bq->is_exists_dataset(         # return 1 (exists) or 0 (no exists)
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required if default project is not set
   )
 
 =item * is_exists_table
+
+Check a table exists or not.
 
   $bq->is_exists_table(           # return 1 (exists) or 0 (no exists)
     project_id => $project_id,    # required if default project is not set
@@ -1188,11 +1240,47 @@ Export a BigQuery table to Google Cloud Storage.
     project_id => $project_id,                # required if default project is not set
     dataset_id => $dataset_id,                # required if default project is not set
     table_id => $table_id,                    # required
-    data => \@data,                           # required (specify Google Cloud Storage URIs)
+    data => $data,                            # required (specify Google Cloud Storage URIs)
     compression => $compression,              # optional
     destinationFormat => $destinationFormat,  # optional
     fieldDelimiter => $fieldDelimiter,        # optional
     printHeader => $boolean,                  # optional
+  );
+
+=item * request
+
+If you want to use functions except above methods, you can request Google BigQuery API using request() method.
+
+See details of Google BigQuery API at https://cloud.google.com/bigquery/docs/reference/v2/.
+
+  $bq->request(
+    resource => $resource,            # BigQuery API resource
+    method => $method,                # BigQuery API method
+    project_id => $project_id,        # project_id
+    dataset_id => $dataset_id,        # dataset_id
+    table_id => $table_id,            # table_id
+    job_id => $job_id,                # job_id
+    content => \%content,             # content of POST
+    query_string => \%query_string,   # query string
+    data => $data,                    # source localfile path for upload
+  );
+
+e.g. Updates description in an existing table.
+
+  $bq->request(
+    resource => 'tables',
+    method => 'update',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
+    table_id => $table_id,
+    content => {
+      talbeReferece => {
+        projectId => $project_id,
+        datasetId => $dataset_id,
+        tableId => $table_id,
+      },
+      description => 'Update!',
+    },
   );
 
 =back
