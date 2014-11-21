@@ -61,14 +61,14 @@ sub DESTROY {
 sub _auth {
   my ($self) = @_;
 
-  $self->{scope} //= 'https://www.googleapis.com/auth/bigquery';
+  $self->{scope} //= [qw(https://www.googleapis.com/auth/bigquery)];
   $self->{exp} = time + 3600;
   $self->{iat} = time;
   $self->{ua} = LWP::UserAgent->new;
 
   my $claim = {
     iss => $self->{client_email},
-    scope => ($self->{scope}),
+    scope => join(" ", @{$self->{scope}}),
     aud => $self->{GOOGLE_API_TOKEN_URI},
     exp => $self->{exp},
     iat => $self->{iat},
@@ -120,18 +120,26 @@ sub create_dataset {
     return 0;
   }
 
+  my $content = {
+    datasetReference => {
+      projectId => $project_id,
+      datasetId => $dataset_id
+    }
+  };
+
+  # option
+  $content->{access} = $args{access} if defined $args{access};
+  $content->{description} = $args{description} if defined $args{description};
+  $content->{friendlyName} = $args{friendlyName} if defined $args{friendlyName};
+
   my $response = $self->request(
     resource => 'datasets',
     method => 'insert',
     project_id => $project_id,
     dataset_id => $dataset_id,
-    content => {
-      datasetReference => {
-        projectId => $project_id,
-        datasetId => $dataset_id
-      }
-    }
+    content => $content,
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -156,12 +164,20 @@ sub drop_dataset {
     return 0;
   }
 
+  # option
+  my $query_string = {};
+  if (defined $args{deleteContents}) {
+    $query_string->{deleteContents} = $args{deleteContents} ? 'true' : 'false';
+  }
+
   my $response = $self->request(
     resource => 'datasets',
     method => 'delete',
     project_id => $project_id,
-    dataset_id => $dataset_id
+    dataset_id => $dataset_id,
+    query_string => $query_string,
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -181,11 +197,21 @@ sub show_datasets {
     return undef;
   }
 
+  # option
+  my $query_string = {};
+  if (defined $args{all}) {
+    $query_string->{all} = $args{all} ? 'true' : 'false';
+  }
+  $query_string->{maxResults} = $args{maxResults} if defined $args{maxResults};
+  $query_string->{pageToken} = $args{pageToken} if defined $args{pageToken};
+
   my $response = $self->request(
     resource => 'datasets',
     method => 'list',
-    project_id => $project_id
+    project_id => $project_id,
+    query_string => $query_string,
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -200,13 +226,43 @@ sub show_datasets {
   return @ret;
 }
 
+sub desc_dataset {
+  my ($self, %args) = @_;
+
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+
+  my $response = $self->request(
+    resource => 'datasets',
+    method => 'get',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
+  );
+  $self->{response} = $response;
+
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return undef;
+  } else {
+    return $response;
+  }
+}
+
 sub create_table {
   my ($self, %args) = @_;
 
   my $project_id = $args{project_id} // $self->{project_id};
   my $dataset_id = $args{dataset_id} // $self->{dataset_id};
   my $table_id = $args{table_id};
-  my $schema = $args{schema};
 
   unless ($project_id) {
     warn "no project\n";
@@ -221,28 +277,35 @@ sub create_table {
     return 0;
   }
 
+  my $content = {
+    tableReference => {
+      projectId => $project_id,
+      datasetId => $dataset_id,
+      tableId => $table_id
+    },
+  };
+
+  # option
+  $content->{description} = $args{description} if defined $args{description};
+  $content->{expirationTime} = $args{expirationTime} if defined $args{expirationTime};
+  $content->{friendlyName} = $args{friendlyName} if defined $args{friendlyName};
+  $content->{schema}{fields} = $args{schema} if defined $args{schema};
+  $content->{view}{query} = $args{view} if defined $args{view};
+
   my $response = $self->request(
     resource => 'tables',
     method => 'insert',
     project_id => $project_id,
     dataset_id => $dataset_id,
     table_id => $table_id,
-    content => {
-      tableReference => {
-        projectId => $project_id,
-        datasetId => $dataset_id,
-        tableId => $table_id
-      },
-      schema => {
-        fields => $schema
-      }
-    }
+    content => $content,
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
     return 0;
-  } elsif (defined $schema && !defined $response->{schema}) {
+  } elsif (defined $args{schema} && !defined $response->{schema}) {
     warn "no create schema";
     return 0;
   } else {
@@ -277,6 +340,7 @@ sub drop_table {
     dataset_id => $dataset_id,
     table_id => $table_id
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -301,12 +365,19 @@ sub show_tables {
     return undef;
   }
 
+  # option
+  my $query_string = {};
+  $query_string->{maxResults} = $args{maxResults} if defined $args{maxResults};
+  $query_string->{pageToken} = $args{pageToken} if defined $args{pageToken};
+
   my $response = $self->request(
     resource => 'tables',
     method => 'list',
     project_id => $project_id,
-    dataset_id => $dataset_id
+    dataset_id => $dataset_id,
+    query_string => $query_string,
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -319,6 +390,43 @@ sub show_tables {
   }
 
   return @ret;
+}
+
+sub desc_table {
+  my ($self, %args) = @_;
+
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
+
+  my $response = $self->request(
+    resource => 'tables',
+    method => 'get',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
+    table_id => $table_id,
+  );
+  $self->{response} = $response;
+
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return undef;
+  } else {
+    return $response;
+  }
 }
 
 sub load {
@@ -358,9 +466,20 @@ sub load {
     }
   };
 
-  if ($data =~ /\.(tsv|csv|json)(?:\.gz)?$/i) {
-    my $suffix = $1;
+  if (ref($data) =~ /ARRAY/) {
+    $content->{configuration}{load}{sourceUris} = $data;
+  } elsif ($data =~ /^gs:\/\//) {
+    $content->{configuration}{load}{sourceUris} = [($data)];
+  }
 
+  my $suffix;
+  if (defined $content->{configuration}{load}{sourceUris}) {
+    $suffix = $1 if $content->{configuration}{load}{sourceUris}[0] =~ /\.(tsv|csv|json)(?:\.gz)?$/i;
+  } else {
+    $suffix = $1 if $data =~ /\.(tsv|csv|json)(?:\.gz)?$/i;
+  }
+
+  if (defined $suffix) {
     my $source_format;
     my $field_delimiter;
     if ($suffix =~ /^tsv$/i) {
@@ -368,16 +487,30 @@ sub load {
     } elsif ($suffix =~ /^json$/i) {
       $source_format = "NEWLINE_DELIMITED_JSON";
     }
-
     $content->{configuration}{load}{sourceFormat} = $source_format if defined $source_format;
     $content->{configuration}{load}{fieldDelimiter} = $field_delimiter if defined $field_delimiter;
-  } else {
-    warn "invalid suffix";
-    return 0;
   }
 
   # load options
+  if (defined $args{allowJaggedRows}) {
+    $content->{configuration}{load}{allowJaggedRows} = $args{allowJaggedRows} ? 'true' : 'false';
+  }
+  if (defined $args{allowQuotedNewlines}) {
+    $content->{configuration}{load}{allowQuotedNewlines} = $args{allowQuotedNewlines} ? 'true' : 'false';
+  }
+  $content->{configuration}{load}{createDisposition} = $args{createDisposition} if defined $args{createDisposition};
+  $content->{configuration}{load}{encoding} = $args{encoding} if defined $args{encoding};
+  $content->{configuration}{load}{fieldDelimiter} = $args{fieldDelimiter} if defined $args{fieldDelimiter};
+  if (defined $args{ignoreUnknownValues}) {
+    $content->{configuration}{load}{ignoreUnknownValues} = $args{ignoreUnknownValues} ? 'true' : 'false';
+  }
+  $content->{configuration}{load}{maxBadRecords} = $args{maxBadRecords} if defined $args{maxBadRecords};
+  $content->{configuration}{load}{quote} = $args{quote} if defined $args{quote};
   $content->{configuration}{load}{schema}{fields} = $args{schema} if defined $args{schema};
+  $content->{configuration}{load}{skipLeadingRows} = $args{skipLeadingRows} if defined $args{skipLeadingRows};
+  $content->{configuration}{load}{sourceFormat} = $args{sourceFormat} if defined $args{sourceFormat};
+  $content->{configuration}{load}{sourceUris} = $args{sourceUris} if defined $args{sourceUris};
+  $content->{configuration}{load}{writeDisposition} = $args{writeDisposition} if defined $args{writeDisposition};
 
   my $response = $self->request(
     resource => 'jobs',
@@ -388,6 +521,7 @@ sub load {
     content => $content,
     data => $data
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -446,6 +580,7 @@ sub insert {
       rows => $rows
     }
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -480,9 +615,18 @@ sub selectrow_array {
     query => $query,
   };
 
+  # option
   if (defined $dataset_id) {
     $content->{defaultDataset}{projectId} = $project_id;
     $content->{defaultDataset}{datasetId} = $dataset_id;
+  }
+  $content->{maxResults} = $args{maxResults} if defined $args{maxResults};
+  $content->{timeoutMs} = $args{timeoutMs} if defined $args{timeoutMs};
+  if (defined $args{dryRun}) {
+    $content->{dryRun} = $args{dryRun} ? 'true' : 'false';
+  }
+  if (defined $args{useQueryCache}) {
+    $content->{useQueryCache} = $args{useQueryCache} ? 'true' : 'false';
   }
 
   my $response = $self->request(
@@ -490,6 +634,7 @@ sub selectrow_array {
     method => 'query',
     content => $content
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -524,9 +669,18 @@ sub selectall_arrayref {
     query => $query,
   };
 
+  # option
   if (defined $dataset_id) {
     $content->{defaultDataset}{projectId} = $project_id;
     $content->{defaultDataset}{datasetId} = $dataset_id;
+  }
+  $content->{maxResults} = $args{maxResults} if defined $args{maxResults};
+  $content->{timeoutMs} = $args{timeoutMs} if defined $args{timeoutMs};
+  if (defined $args{dryRun}) {
+    $content->{dryRun} = $args{dryRun} ? 'true' : 'false';
+  }
+  if (defined $args{useQueryCache}) {
+    $content->{useQueryCache} = $args{useQueryCache} ? 'true' : 'false';
   }
 
   my $response = $self->request(
@@ -534,6 +688,7 @@ sub selectall_arrayref {
     method => 'query',
     content => $content
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
@@ -573,6 +728,7 @@ sub is_exists_dataset {
     project_id => $project_id,
     dataset_id => $dataset_id
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     #warn $response->{error}{message};
@@ -609,6 +765,7 @@ sub is_exists_table {
     dataset_id => $dataset_id,
     table_id => $table_id
   );
+  $self->{response} = $response;
 
   if (defined $response->{error}) {
     #warn $response->{error}{message};
@@ -617,6 +774,111 @@ sub is_exists_table {
     return 1;
   }
 }
+
+sub extract {
+  my ($self, %args) = @_;
+
+  my $project_id = $args{project_id} // $self->{project_id};
+  my $dataset_id = $args{dataset_id} // $self->{dataset_id};
+  my $table_id = $args{table_id};
+  my $data = $args{data};
+
+  unless ($project_id) {
+    warn "no project\n";
+    return 0;
+  }
+  unless ($dataset_id) {
+    warn "no dataset\n";
+    return 0;
+  }
+  unless ($table_id) {
+    warn "no table\n";
+    return 0;
+  }
+  unless ($data) {
+    warn "no data\n";
+    return 0;
+  }
+
+  my $content = {
+    configuration => {
+      extract => {
+        sourceTable => {
+          projectId => $project_id,
+          datasetId => $dataset_id,
+          tableId => $table_id,
+        }
+      }
+    }
+  };
+
+  if (ref($data) =~ /ARRAY/) {
+    $content->{configuration}{extract}{destinationUris} = $data;
+  } elsif ($data =~ /^gs:\/\//) {
+    $content->{configuration}{extract}{destinationUris} = [($data)];
+  } else {
+    $content->{configuration}{extract}{destinationUris} = [('')];
+  }
+
+  my $suffix;
+  my $compression;
+  if (defined $content->{configuration}{extract}{destinationUris}) {
+    $suffix = $1 if $content->{configuration}{extract}{destinationUris}[0] =~ /\.(tsv|csv|json|avro)(?:\.gz)?$/i;
+    $compression = 'GZIP' if $content->{configuration}{extract}{destinationUris}[0] =~ /\.gz$/i;
+  }
+
+  if (defined $suffix) {
+    my $destination_format;
+    my $field_delimiter;
+    if ($suffix =~ /^tsv$/i) {
+      $field_delimiter = "\t";
+    } elsif ($suffix =~ /^json$/i) {
+      $destination_format = "NEWLINE_DELIMITED_JSON";
+    } elsif ($suffix =~ /^avro$/) {
+      $destination_format = "AVRO";
+    }
+    $content->{configuration}{extract}{destinationFormat} = $destination_format if defined $destination_format;
+    $content->{configuration}{extract}{fieldDelimiter} = $field_delimiter if defined $field_delimiter;
+  }
+  $content->{configuration}{extract}{compression} = $compression if defined $compression;
+
+  # extract options
+  $content->{configuration}{extract}{compression} = $args{compression} if defined $args{compression};
+  $content->{configuration}{extract}{destinationFormat} = $args{destinationFormat} if defined $args{destinationFormat};
+  $content->{configuration}{extract}{destinationUris} = $args{destinationUris} if defined $args{destinationUris};
+  $content->{configuration}{extract}{fieldDelimiter} = $args{fieldDelimiter} if defined $args{fieldDelimiter};
+  if (defined $args{printHeader}) {
+    $content->{configuration}{extract}{printHeader} = $args{printHeader} ? 'true' : 'false';
+  }
+
+  my $response = $self->request(
+    resource => 'jobs',
+    method => 'insert',
+    project_id => $project_id,
+    dataset_id => $dataset_id,
+    talbe_id => $table_id,
+    content => $content,
+    data => $data
+  );
+  $self->{response} = $response;
+
+  if (defined $response->{error}) {
+    warn $response->{error}{message};
+    return 0;
+  } elsif ($response->{status}{state} eq 'DONE') {
+    if (defined $response->{status}{errors}) {
+      foreach my $error (@{$response->{status}{errors}}) {
+        warn encode_json($error), "\n";
+      }
+      return 0;
+    } else {
+      return 1;
+    }
+  } else {
+    return 0;
+  }
+}
+
 
 1;
 __END__
@@ -634,49 +896,28 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     my $client_email = <YOUR CLIENT EMAIL ADDRESS>;
     my $private_key_file = <YOUR PRIVATE KEY FILE>;
     my $project_id = <YOUR PROJECT ID>;
-    my $dataset_id = <YOUR DATASET ID>;
 
     my $bigquery = Google::BigQuery::create(
-      client_email => $client_email,            # required
-      private_key_file => $private_key_file,    # required
-      project_id => $project_id,                # optional (used as default project)
-      dataset_id => $dataset_id,                # optional (used as default dataset)
+      client_email => $client_email,
+      private_key_file => $private_key_file,
+      project_id => $project_id,
     );
 
-    # set default project
-    $bigquery->use_project($project_id);
-
-    # set default dataset
-    $bigquery->use_dataset($dataset_id);
-
     # create dataset
+    my $dataset_id = <YOUR DATASET ID>;
+
     $bigquery->create_dataset(
-      dataset_id => $dataset_id,    # required if default dataset is not set
-      project_id => $project_id     # required if default project is not set
+      dataset_id => $dataset_id
     );
 
     # create table
     my $table_id = 'sample_table';
 
     $bigquery->create_table(
-      table_id => $table_id,        # required
-      dataset_id => $dataset_id,    # required if default dataset is not set
-      project_id => $project_id,    # required if default project is not set
-      schema => [                   # required
+      table_id => $table_id,
+      schema => [
         { name => "id", type => "INTEGER", mode => "REQUIRED" },
         { name => "name", type => "STRING", mode => "NULLABLE" }
-      ]
-    );
-
-    # insert
-    $bigquery->insert(
-      table_id => $table_id,        # required
-      dataset_id => $dataset_id,    # required if default dataset is not set
-      project_id => $project_id,    # required if default project is not set
-      values => [                   # required
-        { id => 101, name => 'name101' },
-        { id => 102 },
-        { id => 103, name => 'name103' }
       ]
     );
 
@@ -693,14 +934,8 @@ Google::BigQuery - Google BigQuery Client Library for Perl
     close $out;
 
     $bigquery->load(
-      table_id => $table_id,        # required
-      dataset_id => $dataset_id,    # required if default dataset is not set
-      project_id => $project_id,    # required if default project is not set
-      data => $load_file,           # required (suppored suffixes are tsv, csv, json and (tsv|csv|json).gz)
-      schema => [                   # optional
-        { name => "id", type => "INTEGER", mode => "REQUIRED" },
-        { name => "name", type => "STRING", mode => "NULLABLE" }
-      ]
+      table_id => $table_id,
+      data => $load_file,
     );
       
     unlink $load_file;
@@ -725,9 +960,9 @@ Google::BigQuery - Google BigQuery Client Library for Perl
 
 Google::BigQuery - Google BigQuery Client Library for Perl
 
-=head1 TROUBLESHOOTING
+=head1 INSTALL
 
-=head2 Configure failed for Crypt-OpenSSL-PKCS12
+  cpanm Google::BigQuery
 
 If such a following error occurrs,
 
@@ -738,7 +973,10 @@ If such a following error occurrs,
 
 For now, you can work around it as below.
 
+  # cd workdir
   cd /home/vagrant/.cpanm/work/1416208473.2527/Crypt-OpenSSL-PKCS12-0.7
+  rm -fr inc
+  cpanm Module::Install
 
   ### If you are a Mac user, you might also need the following steps.
   #
@@ -757,12 +995,205 @@ For now, you can work around it as below.
   # +cc_inc_paths('/usr/local/opt/openssl/include', '/usr/include/openssl', '/usr/local/include/ssl', '/usr/local/ssl/include');
   # +cc_lib_paths('/usr/local/opt/openssl/lib', '/usr/lib', '/usr/local/lib', '/usr/local/ssl/lib');
   
-  rm -fr inc
-  cpanm Module::Install
   perl Makefile.PL
   make
   make test
   make install
+
+
+=head1 METHODS
+
+See details of option at https://cloud.google.com/bigquery/docs/reference/v2/
+
+=over 4
+
+=item * create
+
+Create a instance.
+
+  my $bq = Google::BigQuery::create(
+    client_email => $client_email,            # required
+    private_key_file => $private_key_file,    # required
+    project_id => $project_id,                # optional
+    dataset_id => $dataset_id,                # optional
+    scope => \@scope,                         # optional (default is 'https://www.googleapis.com/auth/bigquery')
+    version => $version,                      # optional (only 'v2')
+  );
+
+=item * use_project
+
+Set a default project.
+
+  $bq->use_project($project_id);
+
+=item * use_dataset
+
+Set a default dataset.
+
+  $bq->use_dataset($dataset_id);
+
+=item * create_dataset
+
+  $bq->create_dataset(              # return 1 (success) or 0 (error)
+    project_id => $project_id,      # required if default project is not set
+    dataset_id => $dataset_id,      # required if default dataset is not set
+    access => \@access,             # optional
+    description => $description,    # optional
+    friendlyName => $friendlyName,  # optional
+  );
+
+=item * drop_dataset
+
+  $bq->drop_dataset(              # return 1 (success) or 0 (error)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required
+    deleteContents => $boolean,   # optional
+  );
+
+=item * show_datasets
+
+  $bq->show_datasets(             # return array of dataset_id
+    project_id => $project_id,    # required if default project is not set
+    all => $boolean,              # optional
+    maxResults => $maxResults,    # optional
+    pageToken => $pageToken,      # optional
+  );
+
+=item * desc_dataset
+
+  $bq->desc_dataset(              # return hashref of datasets resource (see. https://cloud.google.com/bigquery/docs/reference/v2/datasets#resource)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+  );
+
+=item * create_table
+
+  $bq->create_table(                    # return 1 (success) or 0 (error)
+    project_id => $project_id,          # required if default project is not set
+    dataset_id => $dataset_id,          # required if default project is not set
+    table_id => $table_id,              # required
+    description => $description,        # optional
+    expirationTime => $expirationTime,  # optional
+    friendlyName => $friendlyName,      # optional
+    schema => \@schma,                  # optional
+    view => $query,                     # optional
+  );
+
+=item * drop_table
+
+  $bq->drop_table(                # return 1 (success) or 0 (error)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required
+    table_id => $table_id,        # required
+  );
+
+=item * show_tables
+
+  $bq->show_tables(               # return array of table_id
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+    maxResults => $maxResults,    # optioanl
+    pageToken => $pageToken,      # optional
+  );
+
+=item * desc_table
+
+  $bq->desc_table(                # return hashref of tables resource (see. https://cloud.google.com/bigquery/docs/reference/v2/tables#resource)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+    table_id => $table_id,        # required
+  );
+
+=item * load
+
+Load data from one of several formats into a table.
+
+  $bq->load(                                  # return 1 (success) or 0 (error)
+    project_id => $project_id,                # required if default project is not set
+    dataset_id => $dataset_id,                # required if default project is not set
+    table_id => $table_id,                    # required
+    data => \@data,                           # required (specify a local file or Google Cloud Storage URIs)
+    allowJaggedRows => $boolean,              # optional
+    allowQuotedNewlines => $boolean,          # optional
+    createDisposition => $createDisposition,  # optional
+    encoding => $encoding,                    # optional
+    fieldDelimiter => $fieldDelimiter,        # optional
+    ignoreUnknownValues => $boolean,          # optional
+    maxBadRecords => $maxBadRecords,          # optional
+    quote => $quote,                          # optional
+    schema => $schema,                        # optional
+    skipLeadingRows => $skipLeadingRows,      # optional
+    sourceFormat => $sourceFormat,            # optional
+    writeDisposition => $writeDisposition,    # optional
+  );
+
+=item * insert
+
+Streams data into BigQuery one record at a time without needing to run a load job.
+See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
+
+  $bq->insert(                    # return 1 (success) or 0 (error)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+    table_id => $table_id,        # required
+    values => \%values,           # required
+  );
+
+=item * selectrow_array
+
+  $bq->selectrow_array(           # return array of a row
+    project_id => $project_id,    # required if default project is not set
+    query => $query,              # required
+    dataset_id => $dataset_id,    # optional
+    maxResults => $maxResults,    # optional
+    timeoutMs => $timeoutMs,      # optional
+    dryRun => $boolean,           # optional
+    useQueryCache => $boolean,    # optional
+  );
+
+=item * selectall_arrayref
+
+  $bq->selectrow_array(           # return arrayref of rows
+    project_id => $project_id,    # required if default project is not set
+    query => $query,              # required
+    dataset_id => $dataset_id,    # optional
+    maxResults => $maxResults,    # optional
+    timeoutMs => $timeoutMs,      # optional
+    dryRun => $boolean,           # optional
+    useQueryCache => $boolean,    # optional
+  );
+
+=item * is_exists_dataset
+
+  $bq->is_exists_dataset(         # return 1 (exists) or 0 (no exists)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+  )
+
+=item * is_exists_table
+
+  $bq->is_exists_table(           # return 1 (exists) or 0 (no exists)
+    project_id => $project_id,    # required if default project is not set
+    dataset_id => $dataset_id,    # required if default project is not set
+    table_id => $table_id,        # required
+  )
+
+=item * extract
+
+Export a BigQuery table to Google Cloud Storage.
+
+  $bq->extract(                               # return 1 (success) or 0 (error)
+    project_id => $project_id,                # required if default project is not set
+    dataset_id => $dataset_id,                # required if default project is not set
+    table_id => $table_id,                    # required
+    data => \@data,                           # required (specify Google Cloud Storage URIs)
+    compression => $compression,              # optional
+    destinationFormat => $destinationFormat,  # optional
+    fieldDelimiter => $fieldDelimiter,        # optional
+    printHeader => $boolean,                  # optional
+  );
+
+=back
 
 =head1 LICENSE
 

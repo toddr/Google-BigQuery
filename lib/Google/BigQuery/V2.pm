@@ -47,37 +47,44 @@ sub request {
     $self->_auth;
   }
 
+  my $request;
   if ($resource eq 'jobs' && $method eq 'insert') {
-    my $upload_path = $rest_description->{mediaUpload}{protocols}{simple}{path};
-    $upload_path = "https://www.googleapis.com" . $upload_path;
-    $upload_path =~ s/{projectId}/$project_id/;
-    $upload_path .= "?uploadType=multipart";
+    my $sub_method = (keys %{$args{content}->{configuration}})[0];
 
-    $header->header('Content-Type' => 'multipart/related');
-    my $request = HTTP::Request->new($http_method, $upload_path, $header);
-
-    $request->add_part(
-      HTTP::Message->new(
-        ['Content-Type' => 'application/json; charset=UTF-8'],
-        encode_json($args{content})
-      )
-    );
-
-    my $data;
-    if ($args{data} =~ /^gs:/) {
-      die;
+    if ($sub_method !~ /^load$/ || defined $args{content}->{configuration}{load}{sourceUris}) {
+      $request = HTTP::Request->new($http_method, $path, $header);
+      if ($http_method =~ /^(?:POST|PUT|PATCH)$/) {
+        $request->header('Content-Type' => 'application/json');
+        $request->content(encode_json($args{content}));
+      }
     } else {
+      my $upload_path = $rest_description->{mediaUpload}{protocols}{simple}{path};
+      $upload_path = "https://www.googleapis.com" . $upload_path;
+      $upload_path =~ s/{projectId}/$project_id/;
+      $upload_path .= "?uploadType=multipart";
+
+      $header->header('Content-Type' => 'multipart/related');
+      $request = HTTP::Request->new($http_method, $upload_path, $header);
+
+      $request->add_part(
+        HTTP::Message->new(
+          ['Content-Type' => 'application/json; charset=UTF-8'],
+          encode_json($args{content})
+        )
+      );
+
+      my $data;
       open my $in, "<", $args{data} or die "can't open $args{data} : $!";
       $data = join('', <$in>);
       close $in;
-    }
 
-    $request->add_part(
-      HTTP::Message->new(
-        ['Content-Type' => 'application/octet-stream'],
-        $data
-      )
-    );
+      $request->add_part(
+        HTTP::Message->new(
+          ['Content-Type' => 'application/octet-stream'],
+          $data
+        )
+      );
+    }
 
     my $response = $self->{ua}->request($request);
     if (defined $response->content) {
@@ -103,7 +110,7 @@ sub request {
       die;
     }
   } else {
-    if (defined $args{query_string}) {
+    if (defined $args{query_string} && %{$args{query_string}}) {
       my @query_string;
       while (my ($key, $value) = each %{$args{query_string}}) {
         push @query_string, join('=', uri_escape($key), uri_escape($value));

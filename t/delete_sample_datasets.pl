@@ -19,11 +19,6 @@ my $bq = Google::BigQuery::create(
 my @datasets = grep /^sample_dataset_/, $bq->show_datasets;
 
 foreach my $dataset (@datasets) {
-  my @tables = $bq->show_tables(dataset_id => $dataset);
-  foreach my $table (@tables) {
-    $bq->drop_table(dataset_id => $dataset, table_id => $table);
-  }
-
   print "drop dataset: $dataset\n";
-  $bq->drop_dataset(dataset_id => $dataset);
+  $bq->drop_dataset(dataset_id => $dataset, deleteContents => 1);
 }
