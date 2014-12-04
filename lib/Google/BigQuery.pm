@@ -949,9 +949,22 @@ Google::BigQuery - Google BigQuery Client Library for Perl
       
     unlink $load_file;
 
+    # insert
+    my $values = [];
+    for (my $id = 101; $id <= 103; $id++) {
+      push @$values, { id => $id, name => "name-${id}" };
+    }
+    $bq->insert(
+      table_id => $table_id,
+      values => $values,
+    );
+
+    # The first time a streaming insert occurs, the streamed data is inaccessible for a warm-up period of up to two minutes.
+    sleep(120);
+
     # selectrow_array
     my ($count) = $bq->selectrow_array(query => "SELECT COUNT(*) FROM $table_id");
-    print $count, "\n";
+    print $count, "\n"; # 103
 
     # selectall_arrayref
     my $aref = $bq->selectall_arrayref(query => "SELECT * FROM $table_id ORDER BY id");
@@ -1177,7 +1190,7 @@ See details at https://cloud.google.com/bigquery/streaming-data-into-bigquery.
     project_id => $project_id,    # required if default project is not set
     dataset_id => $dataset_id,    # required if default project is not set
     table_id => $table_id,        # required
-    values => \%values,           # required
+    values => \@values,           # required
   );
 
 =item * selectrow_array

@@ -36,11 +36,7 @@ $bq->create_table(
 my $load_file = "load_file.tsv";
 open my $out, ">", $load_file or die;
 for (my $id = 1; $id <= 100; $id++) {
-  if ($id % 10 == 0) {
-    print $out join("\t", $id, undef), "\n";
-  } else {
-    print $out join("\t", $id, "name-${id}"), "\n";
-  }
+  print $out join("\t", $id, "name-${id}"), "\n";
 }
 close $out;
 
@@ -51,9 +47,22 @@ $bq->load(
 
 unlink $load_file;
 
+# insert
+my $values = [];
+for (my $id = 101; $id <= 103; $id++) {
+  push @$values, { id => $id, name => "name-${id}" };
+}
+$bq->insert(
+  table_id => $table_id,
+  values => $values,
+);
+
+# The first time a streaming insert occurs, the streamed data is inaccessible for a warm-up period of up to two minutes.
+sleep(120); 
+
 # selectrow_array
 my ($count) = $bq->selectrow_array(query => "SELECT COUNT(*) FROM $table_id");
-print $count, "\n";
+print $count, "\n"; # 103
 
 # selectall_arrayref
 my $aref = $bq->selectall_arrayref(query => "SELECT * FROM $table_id ORDER BY id");
