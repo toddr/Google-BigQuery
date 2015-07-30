@@ -280,6 +280,8 @@ See details of option at https://cloud.google.com/bigquery/docs/reference/v2/.
           skipLeadingRows => $skipLeadingRows,      # optional
           sourceFormat => $sourceFormat,            # optional
           writeDisposition => $writeDisposition,    # optional
+          async => $boolean,                        # optional (sync:0[default], async:1)
+                                                    # return job_id if this option is set
         );
 
 - insert
