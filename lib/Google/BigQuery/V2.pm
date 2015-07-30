@@ -93,6 +93,10 @@ sub request {
         return { error => { message => $content->{error}{message} } };
       } elsif ($response->code == 200) {
         my $json_response = decode_json($response->decoded_content);
+
+        # return if async is true
+        return $json_response if $args{async};
+
         my $job_id = $json_response->{jobReference}{jobId};
         while (1) {
           my $json_response = $self->request(method => 'get', resource => 'jobs', job_id => $job_id);

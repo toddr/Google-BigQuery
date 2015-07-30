@@ -436,6 +436,7 @@ sub load {
   my $dataset_id = $args{dataset_id} // $self->{dataset_id};
   my $table_id = $args{table_id};
   my $data = $args{data};
+  my $async = $args{async} // 0;
 
   unless ($project_id) {
     warn "no project\n";
@@ -519,13 +520,17 @@ sub load {
     dataset_id => $dataset_id,
     talbe_id => $table_id,
     content => $content,
-    data => $data
+    data => $data,
+    async => $async
   );
   $self->{response} = $response;
 
   if (defined $response->{error}) {
     warn $response->{error}{message};
     return 0;
+  } elsif ($async) {
+    # return job_id if async is true.
+    return $response->{jobReference}{jobId};
   } elsif ($response->{status}{state} eq 'DONE') {
     if (defined $response->{status}{errors}) {
       foreach my $error (@{$response->{status}{errors}}) {
