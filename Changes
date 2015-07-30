@@ -2,6 +2,10 @@ Revision history for Perl extension Google-BigQuery
 
 {{$NEXT}}
 
+1.01 2015-07-30T04:17:48Z
+
+    - Add a async option to the load function.
+
 1.00 2014-11-21T15:21:08Z
 
     - original version
