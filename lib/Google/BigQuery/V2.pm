@@ -86,7 +86,7 @@ sub request {
       );
     }
 
-    my $response = $self->{ua}->request($request);
+    my $response = $self->{response} = $self->{ua}->request($request);
     if (defined $response->content) {
       my $content = decode_json($response->content);
       if (defined $content->{error}) {
@@ -127,7 +127,7 @@ sub request {
       $request->header('Content-Type' => 'application/json');
       $request->content(encode_json($args{content}));
     }
-    my $response = $self->{ua}->request($request);
+    my $response = $self->{response} = $self->{ua}->request($request);
 
     if ($response->code == 204) {
       return {};

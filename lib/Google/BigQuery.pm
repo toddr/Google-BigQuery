@@ -3,7 +3,7 @@ use 5.010001;
 use strict;
 use warnings;
 
-our $VERSION = "1.02";
+our $VERSION = "1.03";
 
 use Class::Load qw(load_class);
 use Crypt::OpenSSL::PKCS12;
@@ -76,7 +76,7 @@ sub _auth {
 
   my $jwt = JSON::WebToken::encode_jwt($claim, $self->{private_key}, 'RS256', { type => 'JWT' });
 
-  my $response = $self->{ua}->post(
+  my $response = $self->{response} = $self->{ua}->post(
     $self->{GOOGLE_API_TOKEN_URI},
     { grant_type => $self->{GOOGLE_API_GRANT_TYPE}, assertion => $jwt }
   );
@@ -91,7 +91,7 @@ sub _auth {
 
 sub _set_rest_description {
   my ($self) = @_;
-  my $response = $self->{ua}->get($self->{GOOGLE_BIGQUERY_REST_DESCRIPTION});
+  my $response = $self->{response} = $self->{ua}->get($self->{GOOGLE_BIGQUERY_REST_DESCRIPTION});
   $self->{rest_description} = decode_json($response->decoded_content);
 }
 
