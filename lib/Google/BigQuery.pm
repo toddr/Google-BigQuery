@@ -92,7 +92,7 @@ sub _auth {
     if ($@) {
 	my $err = $@;
 	chomp($err);
-	die("Got error '$err' when decoding json respons:\n'" . $response->decoded_content);
+	die("Got error '$err' when decoding json response:\n'" . $response->decoded_content);
     }
 
     die $jsonerror->{error};
