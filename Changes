@@ -2,6 +2,10 @@ Revision history for Perl extension Google-BigQuery
 
 {{$NEXT}}
 
+1.03 2022-03-16T22:57:00Z
+
+    - store latest http response in $self for debugging purposes
+
 1.02 2015-07-30T05:03:02Z
 
     - Fix typo viersion number.
