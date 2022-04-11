@@ -629,6 +629,7 @@ sub selectrow_array {
 
   my $content = {
     query => $query,
+    useLegacySql => $args{useLegacySql} // 'true'
   };
 
   # option
@@ -653,7 +654,11 @@ sub selectrow_array {
   $self->{response} = $response;
 
   if (defined $response->{error}) {
-    warn $response->{error}{message};
+    if ($response->{error}{message}=~/Try using standard SQL/) {
+      warn "add useLegacySql=>'false'";
+    } else {
+      warn $response->{error}{message};
+    }
     return 0;
   }
 
@@ -683,6 +688,7 @@ sub selectall_arrayref {
 
   my $content = {
     query => $query,
+    useLegacySql => $args{useLegacySql} // 'true'
   };
 
   # option
@@ -707,7 +713,11 @@ sub selectall_arrayref {
   $self->{response} = $response;
 
   if (defined $response->{error}) {
-    warn $response->{error}{message};
+    if ($response->{error}{message}=~/Try using standard SQL/) {
+      warn "add useLegacySql=>'false'";
+    } else {
+      warn $response->{error}{message};
+    }
     return 0;
   }
 
@@ -1216,6 +1226,7 @@ Select a row.
   $bq->selectrow_array(           # return array of a row
     project_id => $project_id,    # required if default project is not set
     query => $query,              # required
+    useLegacySql => $boolean,     # optional (default: true)
     dataset_id => $dataset_id,    # optional
     maxResults => $maxResults,    # optional
     timeoutMs => $timeoutMs,      # optional
@@ -1230,6 +1241,7 @@ Select rows.
   $bq->selectrow_array(           # return arrayref of rows
     project_id => $project_id,    # required if default project is not set
     query => $query,              # required
+    useLegacySql => $boolean,     # optional (default: true)
     dataset_id => $dataset_id,    # optional
     maxResults => $maxResults,    # optional
     timeoutMs => $timeoutMs,      # optional
